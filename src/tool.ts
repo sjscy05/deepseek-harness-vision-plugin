@@ -28,14 +28,17 @@ export function truncateText(text: string, maxChars: number): string {
 }
 
 /**
- * Define the `vision_read` tool for one plugin configuration.
+ * Define the `vision_read` tool for one plugin configuration. The
+ * description and `question` parameter teach the model to pass its current
+ * intent — what the user asked or the detail the task needs — instead of
+ * falling back to a generic description.
  * @param config - validated plugin configuration.
  * @returns the registry-ready tool definition.
  */
 export function defineVisionReadTool(config: Config): ToolDefinition {
   return defineTool({
     name: 'vision_read',
-    description: 'Read an image with a vision sub-model and answer a question about it, returning the answer as text. Use this when the user asks about the content of an image — a photo, screenshot, diagram, chart, or scan — especially when the current main model cannot accept image input directly. The image can be a local file path, an http(s) URL, or a data: URI.',
+    description: 'Read an image with a vision sub-model and answer a question about it, returning the answer as text. Use this when the user asks about the content of an image — a photo, screenshot, diagram, chart, or scan — especially when the current main model cannot accept image input directly. The image can be a local file path, an http(s) URL, or a data: URI. Always pass the specific question the current task needs answered (phrased from the user\u2019s request or the detail you need); omit it only when a full general description is genuinely wanted.',
     parameters: {
       image: {
         type: 'string',
@@ -44,7 +47,7 @@ export function defineVisionReadTool(config: Config): ToolDefinition {
       },
       question: {
         type: 'string',
-        description: 'The question to answer about the image; omitted uses the configured default (a detailed description).',
+        description: 'The exact question the vision model must answer about the image, phrased from the user\u2019s request or the current task\u2019s need (e.g. "What text is visible?", "Describe the chart\u2019s trend"). Omitted uses the configured default (a full detailed description).',
       },
       model: {
         type: 'string',

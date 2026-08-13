@@ -53,6 +53,8 @@ describe('defineVisionReadTool', () => {
     const tool = defineVisionReadTool(config)
     expect(tool.name).toBe('vision_read')
     expect(tool.description).toContain('Read an image')
+    // Intent guidance: the model must pass its current task's question.
+    expect(tool.description).toContain('specific question')
     expect(tool.timeoutMs).toBe(42_000)
     expect(tool.output.schema).toEqual({ type: 'string' })
     // defineTool compiles the parameter spec to JSON Schema: required

@@ -92,9 +92,17 @@ ZHIPU_API_KEY=你的智谱key
 `vision_read(image, question?, model?)` — UI 呈现意图为 `generic`（单次问答往返，无自定义卡片）。
 
 - `image`（必填）：本地文件路径（绝对路径，或相对 harness 工作目录的路径）、http(s) URL（按同一超时预算下载）、或 `data:image/...;base64,...` URI。支持格式：PNG、JPEG、WebP、GIF。
-- `question`：针对图片提出的问题；缺省使用配置的 `defaultQuestion`。
+- `question`：针对图片的**具体问题**——从用户请求或当前任务的需要出发，带上意图（如"What text is visible?"、"Describe the chart's trend"），而不是让视觉模型泛泛描述；只有确实需要完整描述时才省略。缺省使用配置的 `defaultQuestion`。
 - `model`：单次调用的视觉模型覆盖。
 - 返回：视觉模型的回答文本。
+
+### 内置 skill：vision-read
+
+插件在 skills 服务存在时自动注册 `vision-read` skill（无需额外安装，卸载插件即随之移除）。skill 指导主模型：
+
+- **何时调用**：用户的问题涉及图片（照片、截图、图表、扫描件、UI 草图）而主模型无法直接看图时
+- **如何带意图提问**：把当前任务真正需要知道的事情问出来，不依赖默认泛化描述；给出中英文示例
+- **如何验证**：把与任务相关的回答引用进回复；回答含糊时用更聚焦的问题再调一次；文字提取与来源对照确认
 
 ### 开发
 
@@ -216,9 +224,17 @@ The selected vendor's block must carry a non-empty `model`, and its key must exi
 `vision_read(image, question?, model?)` — the UI render intent is `generic` (single question/answer round trip, no custom card).
 
 - `image` (required): a local file path (absolute, or relative to the harness working directory), an http(s) URL (downloaded with the same timeout budget), or a `data:image/...;base64,...` URI. Supported formats: PNG, JPEG, WebP, GIF.
-- `question`: what to ask about the image; defaults to the configured `defaultQuestion`.
+- `question`: the **specific question** about the image — phrased from the user's request or the current task's need (e.g. "What text is visible?", "Describe the chart's trend"), not a generic "describe this"; omit it only when a full general description is genuinely wanted. Defaults to the configured `defaultQuestion`.
 - `model`: per-call vision-model override.
 - Returns: the vision model's answer as text.
+
+### Built-in skill: vision-read
+
+When a skills service is mounted, the plugin auto-registers the `vision-read` skill (no extra install; it disappears with the plugin on unload). The skill teaches the main model:
+
+- **When to call**: the user's request involves an image (photo, screenshot, diagram, chart, scan, UI mockup) and the current model has no image input.
+- **How to ask with intent**: ask what the current task actually needs, instead of falling back to a generic description — with bilingual examples.
+- **How to verify**: quote the task-relevant parts of the answer; re-call with a more focused question when the answer is vague; cross-check extracted text against the image source.
 
 ### Development
 

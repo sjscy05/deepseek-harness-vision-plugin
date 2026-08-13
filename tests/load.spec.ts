@@ -7,6 +7,7 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
+import SkillRegistry from '@deepseek-ai/dsh-skill'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -48,6 +49,20 @@ describe('plugin composition', () => {
 
     await fiber.dispose()
     expect(ctx.tools.get('vision_read')).toBeUndefined()
+  })
+
+  it('registers the vision-read skill when the skills service is mounted', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(SkillRegistry)
+    fibers.push(await ctx.plugin(visionPlugin, makeConfig()))
+
+    const names = (await ctx.skills.list()).map(skill => skill.name)
+    expect(names).toContain('vision-read')
+    const skill = await ctx.skills.get('vision-read')
+    expect(skill?.content).toContain('vision_read')
+    expect(skill?.whenToUse).toContain('image')
   })
 
   it('executes the registered tool through the registry', async () => {

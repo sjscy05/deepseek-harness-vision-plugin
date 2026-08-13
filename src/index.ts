@@ -7,8 +7,10 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import Schema from '@deepseek-ai/schemastery'
+import type {} from '@deepseek-ai/dsh-skill'
 import { PROVIDER_KEYS, VENDOR_ENV_KEYS } from './providers.ts'
 import type { ProviderKey, ProviderSettings } from './providers/types.ts'
+import { registerVisionSkill } from './skill.ts'
 import { defineVisionReadTool } from './tool.ts'
 
 /** Plugin id used in `cordis.yml`. */
@@ -138,8 +140,10 @@ export function resolveProviderSettings(config: Config): ProviderSettings {
 }
 
 /**
- * Apply the plugin: fail loudly on misconfiguration, then register the
- * `vision_read` tool. Registrations are effects and clean up on unload.
+ * Apply the plugin: fail loudly on misconfiguration, register the
+ * `vision_read` tool, and register the `vision-read` skill when a skills
+ * service is mounted (optional capability). Registrations are effects and
+ * clean up on unload.
  * @param ctx - Cordis context; `ctx.tools` is ready (declared in `inject`).
  * @param config - validated plugin configuration.
  */
@@ -148,4 +152,6 @@ export function apply(ctx: Context, config: Config) {
   // misconfiguration the operator must fix in cordis.yml / .env.
   resolveProviderSettings(config)
   ctx.tools.register(defineVisionReadTool(config))
+  const skills = ctx.get('skills')
+  if (skills !== undefined) registerVisionSkill(skills)
 }
