@@ -7,7 +7,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import Schema from '@deepseek-ai/schemastery'
-import { PROVIDER_KEYS } from './providers.ts'
+import { PROVIDER_KEYS, VENDOR_ENV_KEYS } from './providers.ts'
 import type { ProviderKey, ProviderSettings } from './providers/types.ts'
 import { defineVisionReadTool } from './tool.ts'
 
@@ -19,6 +19,9 @@ export const inject = ['tools']
 /** Per-provider endpoint defaults applied when `baseUrl` is left empty. */
 export const DEFAULT_BASE_URLS: Record<ProviderKey, string> = {
   openai: 'https://api.openai.com/v1',
+  zhipu: 'https://open.bigmodel.cn/api/paas/v4',
+  qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  doubao: 'https://ark.cn-beijing.volces.com/api/v3',
   anthropic: 'https://api.anthropic.com',
   gemini: 'https://generativelanguage.googleapis.com/v1beta',
 }
@@ -27,7 +30,11 @@ export const DEFAULT_BASE_URLS: Record<ProviderKey, string> = {
 export interface ProviderBlock {
   /** Endpoint base; empty uses {@link DEFAULT_BASE_URLS}. */
   baseUrl?: string
-  /** Secret sent to the provider; supply via `!!js process.env.X` in cordis.yml. */
+  /**
+   * Secret sent to the provider. Leave empty to read it from the provider's
+   * env variable (see {@link VENDOR_ENV_KEYS}), e.g. `ZHIPU_API_KEY` in the
+   * repo-root `.env` — the recommended setup.
+   */
   apiKey?: string
   /** Vision model id accepted by the provider. */
   model?: string
@@ -37,10 +44,16 @@ export interface ProviderBlock {
 
 /** Plugin configuration: provider selection plus shared budgets. */
 export interface Config {
-  /** Which provider family serves `vision_read` calls. */
+  /** Which vendor family serves `vision_read` calls; switch by changing this one line. */
   provider: ProviderKey
-  /** OpenAI-compatible chat-completions settings. */
+  /** OpenAI settings (OpenAI, or any OpenAI-compatible gateway via `baseUrl`). */
   openai?: ProviderBlock
+  /** Zhipu (BigModel) GLM-4V settings. */
+  zhipu?: ProviderBlock
+  /** Alibaba Qwen-VL settings (DashScope compatible mode). */
+  qwen?: ProviderBlock
+  /** ByteDance Doubao settings (Volcengine Ark). */
+  doubao?: ProviderBlock
   /** Anthropic Messages API settings. */
   anthropic?: ProviderBlock
   /** Google Gemini generateContent settings. */
@@ -66,6 +79,9 @@ const providerBlock = Schema.object({
 export const Config: Schema<Config> = Schema.object({
   provider: Schema.union([...PROVIDER_KEYS]).default('openai'),
   openai: providerBlock,
+  zhipu: providerBlock,
+  qwen: providerBlock,
+  doubao: providerBlock,
   anthropic: providerBlock,
   gemini: providerBlock,
   timeoutMs: Schema.number().min(1000).default(60_000),
@@ -76,7 +92,8 @@ export const Config: Schema<Config> = Schema.object({
 
 /**
  * Resolve the settings of the *selected* provider, applying endpoint
- * defaults and validating that the block exists and carries a key and model.
+ * defaults, reading the API key from the provider's env variable when the
+ * block leaves `apiKey` empty, and validating that a key and model exist.
  * Called at load and per tool call so configuration edits reach the next
  * request without re-registration.
  * @param config - validated plugin configuration.
@@ -85,24 +102,31 @@ export const Config: Schema<Config> = Schema.object({
 export function resolveProviderSettings(config: Config): ProviderSettings {
   const raw = config.provider === 'openai'
     ? config.openai
-    : config.provider === 'anthropic'
-      ? config.anthropic
-      : config.gemini
+    : config.provider === 'zhipu'
+      ? config.zhipu
+      : config.provider === 'qwen'
+        ? config.qwen
+        : config.provider === 'doubao'
+          ? config.doubao
+          : config.provider === 'anthropic'
+            ? config.anthropic
+            : config.gemini
   if (raw === undefined) {
     throw new Error(
       `vision: provider "${config.provider}" is selected but its settings block (${config.provider}:) is missing from the plugin config`,
     )
   }
-  const apiKey = (raw.apiKey ?? '').trim()
+  const envKeyName = VENDOR_ENV_KEYS[config.provider]
+  const apiKey = (raw.apiKey ?? '').trim() || (process.env[envKeyName] ?? '').trim()
   if (apiKey.length === 0) {
     throw new Error(
-      `vision: provider "${config.provider}" has an empty apiKey; set it in cordis.yml, e.g. apiKey: !!js process.env.OPENAI_API_KEY`,
+      `vision: provider "${config.provider}" has no apiKey; set ${envKeyName} in the repo-root .env (or the ${config.provider}: block's apiKey)`,
     )
   }
   const model = (raw.model ?? '').trim()
   if (model.length === 0) {
     throw new Error(
-      `vision: provider "${config.provider}" has an empty model; set model: in cordis.yml, e.g. model: 'gpt-4o-mini'`,
+      `vision: provider "${config.provider}" has an empty model; set model: in its block in cordis.yml`,
     )
   }
   return {
@@ -121,7 +145,7 @@ export function resolveProviderSettings(config: Config): ProviderSettings {
  */
 export function apply(ctx: Context, config: Config) {
   // Fail at load, not on the first call: a missing block or key is a static
-  // misconfiguration the operator must fix in cordis.yml.
+  // misconfiguration the operator must fix in cordis.yml / .env.
   resolveProviderSettings(config)
   ctx.tools.register(defineVisionReadTool(config))
 }

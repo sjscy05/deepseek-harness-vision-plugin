@@ -24,15 +24,18 @@ Harness 内置的 `read_image` 工具（tool-fs）会把图片字节返回给支
 
 ### 视觉子模型兼容性
 
-视觉子模型由 `config.provider` 选择，兼容主流 API 格式：
+视觉子模型由 `config.provider` 选择，内置六家主流厂商，切换只需改一行：
 
-| `provider` | API | 示例模型 | 配置 |
-| --- | --- | --- | --- |
-| `openai` | OpenAI 兼容 `chat/completions`（`image_url` 部分） | OpenAI `gpt-4o` / `gpt-4o-mini` / `gpt-4.1`；Qwen-VL（DashScope 兼容模式）；智谱 GLM-4V；Moonshot；Mistral；xAI；本地 vLLM/Ollama 网关 | `openai: { baseUrl, apiKey, model }` |
-| `anthropic` | Anthropic Messages API（base64 `image` 块） | Claude 视觉模型，如 `claude-sonnet-4-5` | `anthropic: { baseUrl, apiKey, model }` |
-| `gemini` | Google Gemini `generateContent`（`inline_data` 部分） | `gemini-2.0-flash`、`gemini-2.5-flash` | `gemini: { baseUrl, apiKey, model }` |
+| `provider` | API | 默认模型 | 端点（可覆盖） | key 环境变量 |
+| --- | --- | --- | --- | --- |
+| `zhipu` | OpenAI 兼容 `chat/completions` | `glm-4v-flash`（免费；`glm-4v-plus` 更强） | `https://open.bigmodel.cn/api/paas/v4` | `ZHIPU_API_KEY` |
+| `qwen` | OpenAI 兼容 `chat/completions` | `qwen-vl-plus` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `QWEN_API_KEY` |
+| `doubao` | OpenAI 兼容 `chat/completions` | `doubao-1.5-vision-pro-32k-250115` | `https://ark.cn-beijing.volces.com/api/v3` | `ARK_API_KEY` |
+| `openai` | OpenAI 兼容 `chat/completions` | `gpt-4o-mini` | `https://api.openai.com/v1` | `OPENAI_API_KEY` |
+| `anthropic` | Anthropic Messages API（base64 `image` 块） | `claude-sonnet-4-5` | `https://api.anthropic.com` | `ANTHROPIC_API_KEY` |
+| `gemini` | Google Gemini `generateContent`（`inline_data` 部分） | `gemini-2.0-flash` | `https://generativelanguage.googleapis.com/v1beta` | `GEMINI_API_KEY` |
 
-`baseUrl` 留空时使用各 provider 的默认端点（`https://api.openai.com/v1`、`https://api.anthropic.com`、`https://generativelanguage.googleapis.com/v1beta`）。把 `openai.baseUrl` 指向任意 OpenAI 兼容端点即可接入对应网关——这也是插件无需任何厂商 SDK 就能兼容主流模型生态的原因。
+zhipu / qwen / doubao / openai 共用 OpenAI 兼容协议；任意 OpenAI 兼容网关（本地 vLLM/Ollama、Moonshot、Mistral、xAI 等）都可以通过 `openai.baseUrl` 接入——无需任何厂商 SDK。
 
 ### 加载插件
 
@@ -42,7 +45,7 @@ Harness 内置的 `read_image` 工具（tool-fs）会把图片字节返回给支
 pnpm dsh --profile web --patch ./vision-plugin/cordis.yml
 ```
 
-patch overlay 会插入插件并预置 `openai` provider。`apiKey` 通过 cordis 的 `!!js` 标签读取环境变量：
+patch overlay 已把六个厂商的配置块全部预置，**API key 一律不写在 cordis.yml 里**，插件自动从仓库根目录的 `.env` 读取所选厂商对应的环境变量。`.env` 已被 gitignore，不会提交；`cordis.yml` 会随仓库公开，请勿把 key 写进去。
 
 ```yaml
 - insert:
@@ -51,22 +54,32 @@ patch overlay 会插入插件并预置 `openai` provider。`apiKey` 通过 cordi
       # （ESM loader 拒绝裸盘符路径）。
       name: 'file:///D:/deepseek-harness/vision-plugin/src/index.ts'
       config:
-        provider: openai
-        openai:
-          baseUrl: 'https://api.openai.com/v1'
-          apiKey: !!js process.env.OPENAI_API_KEY
-          model: 'gpt-4o-mini'
+        # 切换视觉厂商 = 改这一行
+        provider: zhipu
+        zhipu:
+          model: 'glm-4v-flash'
+        qwen:
+          model: 'qwen-vl-plus'
+        # ...其余厂商块同理，可删掉不用的
 ```
 
-所选 provider 的配置块必须带有非空的 `apiKey` 和 `model`；配置缺失会在插件加载时直接报出可操作的错误（绝不会静默回退）。启动前先设置环境变量，如 `OPENAI_API_KEY=sk-...`。
+对应 `.env` 示例：
+
+```
+ZHIPU_API_KEY=你的智谱key
+# QWEN_API_KEY=...
+# ARK_API_KEY=...
+```
+
+所选厂商的配置块必须带有非空的 `model`，key 必须存在于 `.env`（或块内显式 `apiKey:` 覆盖）；缺失时插件加载会直接报出可操作的错误（绝不会静默回退）。
 
 ### 配置参考
 
 | 键 | 类型 | 默认值 | 含义 |
 | --- | --- | --- | --- |
-| `provider` | `openai` \| `anthropic` \| `gemini` | `openai` | 服务 `vision_read` 调用的视觉 API 家族 |
-| `<provider>.baseUrl` | string | 各 provider 默认端点 | API 端点基地址 |
-| `<provider>.apiKey` | string | 必填 | 密钥；通过 `!!js process.env.X` 提供 |
+| `provider` | `openai` \| `zhipu` \| `qwen` \| `doubao` \| `anthropic` \| `gemini` | `openai` | 服务 `vision_read` 调用的视觉厂商；切换只需改这一行 |
+| `<provider>.baseUrl` | string | 各厂商默认端点 | API 端点基地址（任意 OpenAI 兼容网关可用 `openai` 块接入） |
+| `<provider>.apiKey` | string | 厂商对应 env 变量 | 密钥；留空自动读 `.env`（如 `ZHIPU_API_KEY`），块内显式填写可覆盖 |
 | `<provider>.model` | string | 必填 | 视觉模型 id |
 | `<provider>.maxTokens` | number | `1024` | 生成 token 的上限 |
 | `timeoutMs` | number | `60000` | 图片下载与 provider 调用的总超时（毫秒） |
@@ -86,11 +99,23 @@ patch overlay 会插入插件并预置 `openai` provider。`apiKey` 通过 cordi
 ### 开发
 
 ```sh
-pnpm -C vision-plugin typecheck   # tsc 检查 src + tests
+pnpm -C vision-plugin typecheck   # tsc 检查 src + scripts + tests
 pnpm -C vision-plugin test        # vitest，无需密钥（fetch 为 mock）
 ```
 
 测试覆盖图片解析（data URI / 路径 / URL，字节上限）、三家 provider 的请求构建与响应解析、HTTP 错误与超时映射、工具端到端执行，以及进程内 Cordis 组合检查（`apply` 注册与注销工具）。
+
+### 直连 API 冒烟测试
+
+无需启动 harness，直接用真实视觉 API 验证插件的数据通路。**在 deepseek-harness 检出目录内运行**（插件依赖 harness 的依赖树解析 `@deepseek-ai/*`，独立复制出来的目录没有这些依赖）；脚本会自动读取仓库根目录的 `.env`，所以**只要 `.env` 里填了 key，什么都不用设**：
+
+```powershell
+cd D:\deepseek-harness
+pnpm -C vision-plugin test:direct          # 默认 zhipu / glm-4v-flash
+$env:PROVIDER = 'qwen'; pnpm -C vision-plugin test:direct   # 换厂商
+$env:MODEL = 'glm-4v-plus'; pnpm -C vision-plugin test:direct  # 换模型
+$env:IMAGE = 'D:/xx/photo.png'; pnpm -C vision-plugin test:direct  # 换图片（路径/URL/data URI）
+```
 
 ### 已知限制
 
@@ -123,15 +148,18 @@ The harness already ships a `read_image` tool (tool-fs) that returns the image b
 
 ### Provider compatibility
 
-The vision sub-model is selected by `config.provider` and speaks mainstream API formats:
+The vision sub-model is selected by `config.provider` — six mainstream vendors are built in, switching is one line:
 
-| `provider` | API | Example models | Config |
-| --- | --- | --- | --- |
-| `openai` | OpenAI-compatible `chat/completions` (`image_url` parts) | OpenAI `gpt-4o` / `gpt-4o-mini` / `gpt-4.1`; Qwen-VL (DashScope compatible mode); Zhipu GLM-4V; Moonshot; Mistral; xAI; local vLLM/Ollama gateways | `openai: { baseUrl, apiKey, model }` |
-| `anthropic` | Anthropic Messages API (`image` base64 blocks) | Claude vision models, e.g. `claude-sonnet-4-5` | `anthropic: { baseUrl, apiKey, model }` |
-| `gemini` | Google Gemini `generateContent` (`inline_data` parts) | `gemini-2.0-flash`, `gemini-2.5-flash` | `gemini: { baseUrl, apiKey, model }` |
+| `provider` | API | Default model | Endpoint (overridable) | Key env var |
+| --- | --- | --- | --- | --- |
+| `zhipu` | OpenAI-compatible `chat/completions` | `glm-4v-flash` (free; `glm-4v-plus` is stronger) | `https://open.bigmodel.cn/api/paas/v4` | `ZHIPU_API_KEY` |
+| `qwen` | OpenAI-compatible `chat/completions` | `qwen-vl-plus` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `QWEN_API_KEY` |
+| `doubao` | OpenAI-compatible `chat/completions` | `doubao-1.5-vision-pro-32k-250115` | `https://ark.cn-beijing.volces.com/api/v3` | `ARK_API_KEY` |
+| `openai` | OpenAI-compatible `chat/completions` | `gpt-4o-mini` | `https://api.openai.com/v1` | `OPENAI_API_KEY` |
+| `anthropic` | Anthropic Messages API (`image` base64 blocks) | `claude-sonnet-4-5` | `https://api.anthropic.com` | `ANTHROPIC_API_KEY` |
+| `gemini` | Google Gemini `generateContent` (`inline_data` parts) | `gemini-2.0-flash` | `https://generativelanguage.googleapis.com/v1beta` | `GEMINI_API_KEY` |
 
-An empty `baseUrl` uses the provider default (`https://api.openai.com/v1`, `https://api.anthropic.com`, `https://generativelanguage.googleapis.com/v1beta`). Any OpenAI-compatible endpoint works by pointing `openai.baseUrl` at it — this is how the plugin stays compatible with the mainstream model ecosystem without per-vendor SDKs.
+zhipu / qwen / doubao / openai share the OpenAI-compatible protocol; any OpenAI-compatible gateway (local vLLM/Ollama, Moonshot, Mistral, xAI, …) can be reached through the `openai` block's `baseUrl` — no per-vendor SDKs.
 
 ### Load the plugin
 
@@ -141,7 +169,7 @@ From the repository root:
 pnpm dsh --profile web --patch ./vision-plugin/cordis.yml
 ```
 
-The patch overlay inserts the plugin with the `openai` provider preconfigured. The `apiKey` rows read environment variables via the cordis `!!js` tag:
+The patch overlay preconfigures all six vendor blocks. **API keys never appear in `cordis.yml`** — the plugin reads the selected vendor's key from the repo-root `.env` (gitignored) automatically. Never write a key into `cordis.yml`; that file ships with the public repository.
 
 ```yaml
 - insert:
@@ -150,22 +178,32 @@ The patch overlay inserts the plugin with the `openai` provider preconfigured. T
       # loader rejects bare drive-letter paths).
       name: 'file:///D:/deepseek-harness/vision-plugin/src/index.ts'
       config:
-        provider: openai
-        openai:
-          baseUrl: 'https://api.openai.com/v1'
-          apiKey: !!js process.env.OPENAI_API_KEY
-          model: 'gpt-4o-mini'
+        # Switching vision vendors = change this one line
+        provider: zhipu
+        zhipu:
+          model: 'glm-4v-flash'
+        qwen:
+          model: 'qwen-vl-plus'
+        # ...same for the other blocks; delete the ones you don't use
 ```
 
-The selected provider's block must carry a non-empty `apiKey` and `model`; missing configuration fails the plugin load with an actionable error (never a silent fallback). Set e.g. `OPENAI_API_KEY=sk-...` before starting.
+Corresponding `.env` example:
+
+```
+ZHIPU_API_KEY=your-zhipu-key
+# QWEN_API_KEY=...
+# ARK_API_KEY=...
+```
+
+The selected vendor's block must carry a non-empty `model`, and its key must exist in `.env` (or be overridden by an explicit `apiKey:` in the block); missing configuration fails the plugin load with an actionable error (never a silent fallback).
 
 ### Configuration reference
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `provider` | `openai` \| `anthropic` \| `gemini` | `openai` | Vision API family serving `vision_read` calls |
-| `<provider>.baseUrl` | string | per-provider default | API endpoint base |
-| `<provider>.apiKey` | string | required | Secret; supply via `!!js process.env.X` |
+| `provider` | `openai` \| `zhipu` \| `qwen` \| `doubao` \| `anthropic` \| `gemini` | `openai` | Vision vendor serving `vision_read` calls; switch by changing this one line |
+| `<provider>.baseUrl` | string | per-vendor default | API endpoint base (any OpenAI-compatible gateway via the `openai` block) |
+| `<provider>.apiKey` | string | vendor env var | Secret; leave empty to read the vendor's env var from `.env` (e.g. `ZHIPU_API_KEY`), set explicitly to override |
 | `<provider>.model` | string | required | Vision model id |
 | `<provider>.maxTokens` | number | `1024` | Provider-side cap on generated tokens |
 | `timeoutMs` | number | `60000` | Wall-clock budget for image download and the provider call |
@@ -185,11 +223,23 @@ The selected provider's block must carry a non-empty `apiKey` and `model`; missi
 ### Development
 
 ```sh
-pnpm -C vision-plugin typecheck   # tsc over src + tests
+pnpm -C vision-plugin typecheck   # tsc over src + scripts + tests
 pnpm -C vision-plugin test        # vitest, keyless (fetch is mocked)
 ```
 
 Tests cover image resolution (data URI / path / URL, byte budgets), the three providers' wire requests and response parsing, HTTP error and timeout mapping, end-to-end tool execution, and an in-process Cordis composition check that `apply` registers and unregisters the tool.
+
+### Direct API smoke test
+
+Verify the plugin's data path against a real vision API without booting the harness. **Run inside the deepseek-harness checkout** (the plugin resolves `@deepseek-ai/*` through the harness dependency tree; a standalone copy has no such dependencies). The script loads the repo-root `.env` itself, so **nothing needs setting once the key is in `.env`**:
+
+```powershell
+cd D:\deepseek-harness
+pnpm -C vision-plugin test:direct                              # default: zhipu / glm-4v-flash
+$env:PROVIDER = 'qwen';  pnpm -C vision-plugin test:direct     # switch vendor
+$env:MODEL = 'glm-4v-plus';  pnpm -C vision-plugin test:direct # switch model
+$env:IMAGE = 'D:/xx/photo.png';  pnpm -C vision-plugin test:direct  # other image (path / URL / data URI)
+```
 
 ### Known Limitations
 

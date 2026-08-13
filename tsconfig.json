@@ -25,5 +25,5 @@
       "@deepseek-ai/dsh-scope/*": ["../packages/core/scope/lib/types/*"]
     }
   },
-  "include": ["src", "tests"]
+  "include": ["src", "scripts", "tests"]
 }

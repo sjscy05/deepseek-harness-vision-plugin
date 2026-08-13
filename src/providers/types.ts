@@ -1,12 +1,18 @@
 /**
  * Provider-neutral vision types: the settings block each provider reads, the
- * per-call image input, and the provider interface implemented by all three
- * API families. Types only — no runtime code.
+ * per-call image input, and the provider interface implemented by all API
+ * families. Types only — no runtime code.
  * @module vision-plugin/providers/types
  */
 
-/** The supported vision API families. */
-export type ProviderKey = 'openai' | 'anthropic' | 'gemini'
+/** The supported vision API families. Zhipu / Qwen / Doubao are OpenAI-compatible. */
+export type ProviderKey =
+  | 'openai'
+  | 'zhipu'
+  | 'qwen'
+  | 'doubao'
+  | 'anthropic'
+  | 'gemini'
 
 /** Configuration for one vision provider, resolved and validated at load. */
 export interface ProviderSettings {

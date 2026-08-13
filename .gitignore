@@ -2,3 +2,7 @@ node_modules/
 lib/
 coverage/
 *.log
+# API keys never belong in this repository — keep them in the deepseek-harness
+# checkout's root .env (gitignored there too).
+.env
+.env.*

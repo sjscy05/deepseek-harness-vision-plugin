@@ -32,6 +32,7 @@ function stubFetch(impl: (url: string, init?: RequestInit) => Promise<Response>)
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
 })
 
 describe('truncateText', () => {
@@ -159,14 +160,40 @@ describe('resolveProviderSettings', () => {
     })
   })
 
+  it('resolves the zhipu vendor to its BigModel endpoint and env key', () => {
+    vi.stubEnv('ZHIPU_API_KEY', 'zhipu-env-key')
+    const config = makeConfig({ provider: 'zhipu', zhipu: { model: 'glm-4v-flash' } })
+    expect(resolveProviderSettings(config)).toMatchObject({
+      baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+      apiKey: 'zhipu-env-key',
+      model: 'glm-4v-flash',
+    })
+  })
+
+  it('resolves the qwen and doubao vendor defaults', () => {
+    vi.stubEnv('QWEN_API_KEY', 'k1')
+    vi.stubEnv('ARK_API_KEY', 'k2')
+    expect(resolveProviderSettings(makeConfig({ provider: 'qwen', qwen: { model: 'qwen-vl-plus' } })))
+      .toMatchObject({ baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', apiKey: 'k1' })
+    expect(resolveProviderSettings(makeConfig({ provider: 'doubao', doubao: { model: 'doubao-x' } })))
+      .toMatchObject({ baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', apiKey: 'k2' })
+  })
+
+  it('prefers the block apiKey over the env variable', () => {
+    vi.stubEnv('OPENAI_API_KEY', 'env-key')
+    const config = makeConfig({ openai: { apiKey: 'block-key', model: 'gpt-4o-mini' } })
+    expect(resolveProviderSettings(config).apiKey).toBe('block-key')
+  })
+
   it('fails loudly when the selected provider block is missing', () => {
     const config = makeConfig({ provider: 'gemini' })
     delete config.openai
     expect(() => resolveProviderSettings(config)).toThrow('settings block (gemini:) is missing')
   })
 
-  it('fails loudly on an empty apiKey', () => {
+  it('fails loudly when neither the block nor the env carries a key', () => {
     const config = makeConfig({ openai: { apiKey: '', model: 'gpt-4o-mini' } })
-    expect(() => resolveProviderSettings(config)).toThrow('empty apiKey')
+    expect(() => resolveProviderSettings(config))
+      .toThrow('set OPENAI_API_KEY in the repo-root .env')
   })
 })

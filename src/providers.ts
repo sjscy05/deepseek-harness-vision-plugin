@@ -1,7 +1,9 @@
 /**
  * Provider registry and the single invocation path every provider family
  * shares: build the wire request, POST it, parse the answer text, and wrap
- * parse failures with the provider name.
+ * parse failures with the provider name. Zhipu / Qwen / Doubao speak the
+ * OpenAI-compatible wire format, so they reuse the OpenAI provider
+ * implementation under their own identity.
  * @module vision-plugin/providers
  */
 
@@ -12,11 +14,44 @@ import { openaiProvider } from './providers/openai.ts'
 import type { ProviderCall, ProviderKey, ProviderSettings, VisionInput, VisionProvider } from './providers/types.ts'
 
 /** Every supported provider key, in configuration order. */
-export const PROVIDER_KEYS: readonly ProviderKey[] = ['openai', 'anthropic', 'gemini'] as const
+export const PROVIDER_KEYS: readonly ProviderKey[] = [
+  'openai',
+  'zhipu',
+  'qwen',
+  'doubao',
+  'anthropic',
+  'gemini',
+] as const
+
+/**
+ * The environment variable each provider's API key is read from when the
+ * provider block leaves `apiKey` empty. Keys live in the repo-root `.env`.
+ */
+export const VENDOR_ENV_KEYS: Record<ProviderKey, string> = {
+  openai: 'OPENAI_API_KEY',
+  zhipu: 'ZHIPU_API_KEY',
+  qwen: 'QWEN_API_KEY',
+  doubao: 'ARK_API_KEY',
+  anthropic: 'ANTHROPIC_API_KEY',
+  gemini: 'GEMINI_API_KEY',
+}
+
+/** Re-export one OpenAI-compatible wire implementation under a vendor identity. */
+function compatibleVendor(key: ProviderKey, displayName: string): VisionProvider {
+  return {
+    key,
+    displayName,
+    buildRequest: openaiProvider.buildRequest,
+    parseResponse: openaiProvider.parseResponse,
+  }
+}
 
 /** Registry keyed by configuration value. */
 export const VISION_PROVIDERS: Record<ProviderKey, VisionProvider> = {
   openai: openaiProvider,
+  zhipu: compatibleVendor('zhipu', 'Zhipu (OpenAI-compatible)'),
+  qwen: compatibleVendor('qwen', 'Qwen (OpenAI-compatible)'),
+  doubao: compatibleVendor('doubao', 'Doubao (OpenAI-compatible)'),
   anthropic: anthropicProvider,
   gemini: geminiProvider,
 }

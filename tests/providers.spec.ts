@@ -9,7 +9,7 @@ import { postJson } from '../src/http.ts'
 import { anthropicProvider } from '../src/providers/anthropic.ts'
 import { geminiProvider } from '../src/providers/gemini.ts'
 import { openaiProvider } from '../src/providers/openai.ts'
-import { invokeVision } from '../src/providers.ts'
+import { invokeVision, VENDOR_ENV_KEYS, VISION_PROVIDERS } from '../src/providers.ts'
 import type { ProviderSettings } from '../src/providers/types.ts'
 import { PNG_SIG_B64, jsonResponse } from './helpers.ts'
 
@@ -128,6 +128,35 @@ describe('geminiProvider', () => {
       candidates: [],
       promptFeedback: { blockReason: 'SAFETY' },
     })).toThrow('blocked by safety filters: SAFETY')
+  })
+})
+
+describe('compatible vendor aliases', () => {
+  it('registers zhipu/qwen/doubao on the OpenAI-compatible wire format', () => {
+    const zhipu = VISION_PROVIDERS['zhipu']
+    const call = zhipu.buildRequest(
+      { ...SETTINGS, baseUrl: 'https://open.bigmodel.cn/api/paas/v4' },
+      INPUT,
+    )
+    expect(call.url).toBe('https://open.bigmodel.cn/api/paas/v4/chat/completions')
+    expect(call.headers.authorization).toBe('Bearer secret-key')
+    expect(zhipu.displayName).toContain('Zhipu')
+    expect(VISION_PROVIDERS['qwen'].displayName).toContain('Qwen')
+    expect(VISION_PROVIDERS['doubao'].displayName).toContain('Doubao')
+    expect(VISION_PROVIDERS['doubao'].parseResponse({
+      choices: [{ message: { content: 'parsed' } }],
+    })).toBe('parsed')
+  })
+
+  it('maps every vendor to its env key name', () => {
+    expect(VENDOR_ENV_KEYS).toEqual({
+      openai: 'OPENAI_API_KEY',
+      zhipu: 'ZHIPU_API_KEY',
+      qwen: 'QWEN_API_KEY',
+      doubao: 'ARK_API_KEY',
+      anthropic: 'ANTHROPIC_API_KEY',
+      gemini: 'GEMINI_API_KEY',
+    })
   })
 })
 

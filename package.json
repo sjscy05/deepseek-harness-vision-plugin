@@ -6,6 +6,7 @@
   "description": "vision_read tool: lets the text-only DeepSeek main model read images through a configurable vision sub-model (OpenAI-compatible / Anthropic / Gemini APIs). Scratch plugin for DeepSeek Harness.",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:direct": "tsx --tsconfig=../tsconfig.base.json scripts/direct-test.ts"
   }
 }
