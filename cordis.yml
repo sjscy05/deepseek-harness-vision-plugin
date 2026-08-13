@@ -1,0 +1,36 @@
+# Patch overlay that inserts the vision plugin into the web profile.
+# Usage (from the repository root):
+#   pnpm dsh --profile web --patch ./vision-plugin/cordis.yml
+# Plugin paths in a patch must be ABSOLUTE and, on Windows, take the
+# file:/// URL form below (the ESM loader rejects bare drive-letter paths);
+# adjust the path if this checkout lives elsewhere.
+# The apiKey rows read environment variables through the cordis `!!js` tag.
+# An unset variable fails the plugin load with an actionable error; the
+# selected provider's block must carry a non-empty apiKey and model.
+- insert:
+    - id: vision
+      name: 'file:///D:/deepseek-harness/vision-plugin/src/index.ts'
+      config:
+        # Provider family serving vision_read calls:
+        #   openai    — OpenAI-compatible chat completions (OpenAI, Qwen-VL,
+        #               GLM-4V, Moonshot, Mistral, xAI, local gateways, ...)
+        #   anthropic — Anthropic Messages API (Claude vision models)
+        #   gemini    — Google Gemini generateContent
+        provider: openai
+        openai:
+          baseUrl: 'https://api.openai.com/v1'
+          apiKey: !!js process.env.OPENAI_API_KEY
+          model: 'gpt-4o-mini'
+        # anthropic:
+        #   baseUrl: 'https://api.anthropic.com'
+        #   apiKey: !!js process.env.ANTHROPIC_API_KEY
+        #   model: 'claude-sonnet-4-5'
+        # gemini:
+        #   baseUrl: 'https://generativelanguage.googleapis.com/v1beta'
+        #   apiKey: !!js process.env.GEMINI_API_KEY
+        #   model: 'gemini-2.0-flash'
+        # Shared budgets (defaults shown; omit to accept them):
+        # timeoutMs: 60000
+        # maxImageBytes: 10485760
+        # maxOutputChars: 20000
+        # defaultQuestion: 'Describe the image in detail, including any visible text.'

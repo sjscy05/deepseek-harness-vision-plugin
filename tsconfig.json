@@ -1,0 +1,29 @@
+{
+  // Standalone typecheck project for the scratch plugin. Paths resolve the
+  // workspace and vendor imports to their BUILT declaration outputs
+  // (lib/types): vendor sources are compiled under their own (looser) project
+  // settings, so pulling them into this program would fail strict checks.
+  // skipLibCheck (from the base config) skips checking those declarations;
+  // src + tests here are checked under the full strict base settings.
+  // composite/incremental are overridden because this is not a build target.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "incremental": false,
+    "noEmit": true,
+    "paths": {
+      "@deepseek-ai/cordis": ["../vendor/cordis/lib/types"],
+      "@deepseek-ai/cosmokit": ["../vendor/cosmokit/lib/types"],
+      "@deepseek-ai/schemastery": ["../vendor/schemastery/lib/types"],
+      "@deepseek-ai/dsh-tools": ["../packages/core/tools/lib/types"],
+      "@deepseek-ai/dsh-tools/*": ["../packages/core/tools/lib/types/*"],
+      "@deepseek-ai/dsh-system-prompt": ["../packages/core/system-prompt/lib/types"],
+      "@deepseek-ai/dsh-system-prompt/*": ["../packages/core/system-prompt/lib/types/*"],
+      "@deepseek-ai/dsh-llm": ["../packages/llm/llm/lib/types"],
+      "@deepseek-ai/dsh-llm/*": ["../packages/llm/llm/lib/types/*"],
+      "@deepseek-ai/dsh-scope": ["../packages/core/scope/lib/types"],
+      "@deepseek-ai/dsh-scope/*": ["../packages/core/scope/lib/types/*"]
+    }
+  },
+  "include": ["src", "tests"]
+}
